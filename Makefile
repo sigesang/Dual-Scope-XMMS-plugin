@@ -7,19 +7,20 @@ OPT = -O3
 #OPT = -mcpu=k6 -march=k6 -O6
 CFLAGS = $(OPT) -Wall -fPIC `gtk-config --cflags gthread`
 LFLAGS = -shared -fPIC -L/usr/local/lib
-OBJ = dscope.o
+NAME = dscope
+OBJ = $(NAME).o
 INSTALL-DIR=`xmms-config --visualization-plugin-dir`
 XMMS_DATADIR=`xmms-config --data-dir`
 #INSTALL-DIR=$(HOME)/.xmms/Plugins
 #XMMS_DATADIR=$(HOME)/.xmms
-THEME_SUBDIR=dscope_themes
+THEME_SUBDIR=$(NAME)_themes
 XMMS_DATADIR_FLAGS=-DTHEMEDIR=\"$(XMMS_DATADIR)/$(THEME_SUBDIR)/\"
-VER=`(grep 'define.*THIS_IS' dscope.c | tr -d [:alpha:][:blank:]\"\#_[=\n=] )`
+VER=`(grep 'define.*THIS_IS' $(NAME).c | tr -d [:alpha:][:blank:]\"\#_[=\n=] )`
 
-all: libdscope.so
+all: lib$(NAME).so
 
-libdscope.so: $(OBJ)
-	$(CC) -o libdscope.so $(OBJ) $(LFLAGS)
+lib$(NAME).so: $(OBJ)
+	$(CC) -o lib$(NAME).so $(OBJ) $(LFLAGS)
 
 .c.o:
 	$(CC) $(CFLAGS) $(XMMS_DATADIR_FLAGS) -c $< 
@@ -31,14 +32,14 @@ distclean:
 	rm -f *.o core *~
 
 install:
-	install libdscope.so $(INSTALL-DIR)
+	install lib$(NAME).so $(INSTALL-DIR) 
 	mkdir -p $(XMMS_DATADIR)/$(THEME_SUBDIR)
 	install bg_*.xpm $(XMMS_DATADIR)/$(THEME_SUBDIR)
 
-release: libdscope.so
-	strip libdscope.so
-	@echo Creating dscope_v$(VER).tar.gz
-	mkdir -p dscope-v$(VER)
-	cp Makefile COPYING Changes README UPGRADE bg*.xpm dscope.c dscope_mini.xpm libdscope.so dscope-v$(VER)
-	tar cvzf dscope-v$(VER).tar.gz dscope-v$(VER)
-	rm -rf dscope-v$(VER)
+release: lib$(NAME).so
+	strip lib$(NAME).so
+	@echo Creating $(NAME)_v$(VER).tar.gz
+	mkdir -p $(NAME)-v$(VER)
+	cp Makefile COPYING Changes README UPGRADE bg*.xpm $(NAME).c $(NAME)_mini.xpm lib$(NAME).so $(NAME)-v$(VER)
+	tar cvzf $(NAME)-v$(VER).tar.gz $(NAME)-v$(VER)
+	rm -rf $(NAME)-v$(VER)

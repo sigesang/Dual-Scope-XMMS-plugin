@@ -1,5 +1,5 @@
 /*
-  Dual Scope 1.3
+  Dual Scope 1.3.1
  -----------------------
   plugin for XMMS
 
@@ -17,12 +17,12 @@
 #include "bg-def.xpm"
 #include "dscope_mini.xpm"
 
-#define THIS_IS "Dual Scope v1.3"
+#define THIS_IS "Dual Scope v1.3.1"
 
 #define CONFIG_SECTION "Dual Scope"
 
 /* THEMEDIR at maketime */
-#define THEME_DEFAULT_STR "default"
+#define THEME_DEFAULT_STR ""
 #define THEME_DEFAULT_PATH THEMEDIR
 
 /*  */
@@ -58,7 +58,6 @@ static GdkBitmap *mask = NULL;
 
 static GdkPixmap *bg_pixmap = NULL;
 static GdkPixmap *pixmap = NULL;
-static gboolean dscope_window_motion = FALSE;
 static GdkColor graphcolor;
 
 static GdkGC *gc = NULL;
@@ -71,7 +70,7 @@ typedef struct {
   gboolean rel_main;
 } DScopeCfg;
 
-static DScopeCfg Cfg = { 0, NULL, 0, 0, 0 };
+static DScopeCfg Cfg = { TYPE_DOT, NULL, -1, -1, 0 };
 
 /* external */
 extern GList *dock_add_window(GList *, GtkWidget *);
@@ -83,8 +82,6 @@ extern void dock_move_release(GtkWidget *);
 static void dscope_about (void);
 static void dscope_init (void);
 static void dscope_cleanup (void);
-/*static void dscope_playback_start (void);*/
-/*static void dscope_playback_stop (void);*/
 static void dscope_render_pcm (gint16 data[2][512]);
 static void dscope_config (void);
 static void create_fileselection (void);
@@ -124,7 +121,7 @@ static void dscope_set_theme (void) {
   GdkVisual *visual;
   GdkColormap *cmap;
 
-  if (Cfg.skin_xpm != NULL && strcmp(Cfg.skin_xpm, "default") != 0) {
+  if (Cfg.skin_xpm != NULL && strcmp(Cfg.skin_xpm, THEME_DEFAULT_STR) != 0) {
     bg_pixmap = gdk_pixmap_create_from_xpm(window->window, &mask, NULL, Cfg.skin_xpm);
   }
   if (bg_pixmap == NULL) {
@@ -160,23 +157,16 @@ static void dscope_set_theme (void) {
   gdk_window_clear(drwarea->window);
 }
 
-static gint dscope_move_x;
-static gint dscope_move_y;
-
 static gint dscope_mousebtnrel_cb(GtkWidget *widget, GdkEventButton *event, gpointer data)
 {
   if (event->type == GDK_BUTTON_RELEASE) {
-    if (dock_is_moving(window)) {
-      dock_move_release(window);
-    }
     if (event->button == 1) {
+      if (dock_is_moving(window)) {
+	dock_move_release(window);
+      }
       if ((event->x > (WINWIDTH - TOP_BORDER)) &&
 	 (event->y < TOP_BORDER)) { // topright corner
 	dscope_vp.disable_plugin(&dscope_vp);
-      }
-      if (dscope_window_motion) {
-	gdk_pointer_ungrab(GDK_CURRENT_TIME);
-	dscope_window_motion = FALSE;
       }
     }
   }
@@ -186,14 +176,6 @@ static gint dscope_mousebtnrel_cb(GtkWidget *widget, GdkEventButton *event, gpoi
 
 static gint dscope_mousemove_cb(GtkWidget *widget, GdkEventMotion *event, gpointer data)
 {
-  if (dscope_window_motion) {
-    GdkModifierType modmask;
-    gint mouse_x, mouse_y;
-
-    gdk_window_get_pointer(NULL, &mouse_x, &mouse_y, &modmask);
-    gdk_window_move(window->window,  mouse_x - dscope_move_x, mouse_y - dscope_move_y);
-  }
-
   if (dock_is_moving(window)) {
     dock_move_motion(window, event);
   }
@@ -204,17 +186,10 @@ static gint dscope_mousemove_cb(GtkWidget *widget, GdkEventMotion *event, gpoint
 static gint dscope_mousebtn_cb(GtkWidget *widget, GdkEventButton *event, gpointer data)
 {
 
-  dscope_move_x = event->x;
-  dscope_move_y = event->y;
-
   if (event->type == GDK_BUTTON_PRESS) {
     if ((event->button == 1) &&
 	(event->x < (WINWIDTH - TOP_BORDER)) &&
 	(event->y <= TOP_BORDER)) { /*topright corner*/
-      gdk_window_raise(window->window);
-      gdk_pointer_grab(window->window, FALSE, GDK_BUTTON_MOTION_MASK | GDK_BUTTON_RELEASE_MASK,
-		       GDK_NONE, GDK_NONE, GDK_CURRENT_TIME);
-      dscope_window_motion = TRUE;
       dock_move_press(dock_window_list, window, event, FALSE);
     }
     
@@ -249,7 +224,6 @@ static void dscope_set_icon (GtkWidget *win)
 static void dscope_init (void) {
   GdkColor color;
   GtkWidget *menu;
-
   if (window) return;
 
   dscope_config_read();
@@ -266,6 +240,7 @@ static void dscope_init (void) {
   gtk_widget_realize(window);
   dscope_set_icon(window);
   gdk_window_set_decorations(window->window, 0);
+  gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_NONE);
 
   if (Cfg.pos_x != -1)
     gtk_widget_set_uposition (window, Cfg.pos_x, Cfg.pos_y);
@@ -301,9 +276,6 @@ static void dscope_init (void) {
 
   dscope_set_theme();
 
-  /*gdk_color_white(gdk_colormap_get_system(), &color);*/
-  /*gdk_gc_set_foreground(gc, &graphcolor);*/
-
   if (!g_list_find(dock_window_list, window)) {
     dock_add_window(dock_window_list, window);
   }
@@ -314,9 +286,9 @@ static void dscope_init (void) {
 static void dscope_cleanup (void) {
   dscope_config_write();
 
-  /* dock_remove_window() seems not to exist in xmms,
-     not sure if this is needed */
-  g_list_remove(dock_window_list, window); 
+  if (g_list_find(dock_window_list, window)) {
+    g_list_remove(dock_window_list, window); 
+  }
 
   if (win_about) gtk_widget_destroy(win_about);
   if (window)    gtk_widget_destroy(window);
@@ -326,14 +298,6 @@ static void dscope_cleanup (void) {
   if (pixmap) { gdk_pixmap_unref(pixmap); pixmap = NULL; }
   if (Cfg.skin_xpm) g_free(Cfg.skin_xpm);
 }
-
-/* useless
-static void dscope_playback_start (void) {
-}
-
-static void dscope_playback_stop (void) {
-}
-*/
 
 static void dscope_render_pcm (gint16 data[2][512]) {
   int i = 0;
@@ -440,7 +404,7 @@ static void dscope_render_pcm (gint16 data[2][512]) {
 
 static void dscope_config_read () {
   ConfigFile *cfg;
-  gchar *filename, *themefile;
+  gchar *filename, *themefile = NULL;
 
   Cfg.type = 0;
   Cfg.pos_x = -1;
@@ -470,7 +434,7 @@ static void dscope_config_write () {
   if ((cfg = xmms_cfg_open_file(filename)) != NULL) {
     xmms_cfg_write_int(cfg, CONFIG_SECTION, "type", Cfg.type);
     xmms_cfg_write_string(cfg, CONFIG_SECTION, "skin_xpm",
-			    (Cfg.skin_xpm != NULL)?Cfg.skin_xpm:"default");
+			    (Cfg.skin_xpm != NULL)?Cfg.skin_xpm:THEME_DEFAULT_STR);
     xmms_cfg_write_int(cfg, CONFIG_SECTION, "pos_x", Cfg.pos_x);
     xmms_cfg_write_int(cfg, CONFIG_SECTION, "pos_y", Cfg.pos_y);
     xmms_cfg_write_file(cfg, filename);
@@ -583,7 +547,7 @@ static void dscope_about (void) {
   lbl_author = gtk_label_new ("plugin for XMMS\n"
 			      "made by Joakim Elofsson\n"
 			      "joakim.elofsson@home.se\n"
-			      "   http://hem.passagen.se/joakime/index.html   ");
+			      "   http://www.shell.linux.se/bm/   ");
   gtk_container_add (GTK_CONTAINER (frm), lbl_author);
   gtk_widget_show (lbl_author);
 
@@ -715,7 +679,7 @@ static void dscope_config (void) {
   gtk_widget_show (etry_theme);
   gtk_box_pack_start (GTK_BOX (hb_theme), etry_theme, TRUE, TRUE, 0);
   gtk_entry_set_editable (GTK_ENTRY (etry_theme), TRUE);
-  gtk_entry_set_text((GtkEntry *) etry_theme, Cfg.skin_xpm);
+  gtk_entry_set_text((GtkEntry *) etry_theme, Cfg.skin_xpm ? Cfg.skin_xpm : THEME_DEFAULT_STR);
 
   btn_theme = gtk_button_new_with_label ("Choose Theme");
   gtk_widget_show (btn_theme);
