@@ -1,3 +1,8 @@
+1.2 -> 1.3
+added xmms-docklist handling (requires xmms 1.2.5+)
+added new scope mode
+fixed graph painting outside scopeborder
+some minor fixes
 1.0 -> 1.2
 now uses a default themedirectory
 added menus, movearoundhanling
