@@ -38,7 +38,7 @@ install:
 release: libdscope.so
 	strip libdscope.so
 	@echo Creating dscope_v$(VER).tar.gz
-	mkdir -p dscope
-	cp COPYING Changes README UPGRADE bg-def.xpm bg_gtk.xpm bg_xmms.xpm dscope.c dscope_mini.xpm libdscope.so dscope
-	tar cvzf dscope_v$(VER).tar.gz dscope
-	rm -rf dscope
+	mkdir -p dscope-v$(VER)
+	cp COPYING Changes README UPGRADE bg*.xpm dscope.c dscope_mini.xpm libdscope.so dscope-v$(VER)
+	tar cvzf dscope-v$(VER).tar.gz dscope-v$(VER)
+	rm -rf dscope-v$(VER)
