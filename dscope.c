@@ -1,5 +1,5 @@
 /*
-  Dual Scope 1.2
+  Dual Scope 1.3
  -----------------------
   plugin for XMMS
 
@@ -17,7 +17,7 @@
 #include "bg-def.xpm"
 #include "dscope_mini.xpm"
 
-#define THIS_IS "Dual Scope v1.2"
+#define THIS_IS "Dual Scope v1.3"
 
 #define CONFIG_SECTION "Dual Scope"
 
@@ -37,6 +37,11 @@
 #define WINWIDTH 275
 #define WINHEIGHT AHEIGHT+BOTTOM_BORDER+TOP_BORDER
 
+#define TYPE_DOT 0
+#define TYPE_LINE 1
+#define TYPE_FILLED 2
+#define TYPE_FILLED2 3
+
 extern GtkWidget *mainwin; /* xmms mainwin */
 extern GList *dock_window_list; /* xmms dockwinlist*/
 
@@ -44,8 +49,7 @@ static GtkWidget *window = NULL;
 static GtkWidget *drwarea = NULL;
 static GtkWidget *win_about = NULL;
 static GtkWidget *win_conf = NULL;
-static GtkWidget *rdbtn_filled = NULL;
-static GtkWidget *rdbtn_line = NULL;
+
 static GtkWidget *btn_snapmainwin = NULL;
 static GtkWidget *ckbtn_rcoords = NULL;
 static GtkWidget *fsel = NULL;
@@ -69,7 +73,11 @@ typedef struct {
 
 static DScopeCfg Cfg = { 0, NULL, 0, 0, 0 };
 
-extern GList *dock_add_window(GList *window_list, GtkWidget *window);
+extern GList *dock_add_window(GList *, GtkWidget *);
+extern gboolean dock_is_moving(GtkWidget *);
+extern void dock_move_motion(GtkWidget *,GdkEventMotion *);
+extern void dock_move_press(GList *, GtkWidget *, GdkEventButton *, gboolean);
+extern void dock_move_release(GtkWidget *);
 
 static void dscope_about ();
 static void dscope_init (void);
@@ -155,6 +163,9 @@ static gint dscope_move_y;
 static gint dscope_mousebtnrel_cb(GtkWidget *widget, GdkEventButton *event, gpointer data)
 {
   if (event->type == GDK_BUTTON_RELEASE) {
+    if (dock_is_moving(window)) {
+      dock_move_release(window);
+    }
     if (event->button == 1) {
       if ((event->x > (WINWIDTH - TOP_BORDER)) &&
 	 (event->y < TOP_BORDER)) { // topright corner
@@ -179,6 +190,11 @@ static gint dscope_mousemove_cb(GtkWidget *widget, GdkEventMotion *event, gpoint
     gdk_window_get_pointer(NULL, &mouse_x, &mouse_y, &modmask);
     gdk_window_move(window->window,  mouse_x - dscope_move_x, mouse_y - dscope_move_y);
   }
+
+  if (dock_is_moving(window)) {
+    dock_move_motion(window, event);
+  }
+
   return TRUE;
 }
 
@@ -190,12 +206,13 @@ static gint dscope_mousebtn_cb(GtkWidget *widget, GdkEventButton *event, gpointe
 
   if (event->type == GDK_BUTTON_PRESS) {
     if ((event->button == 1) &&
-       (event->x < (WINWIDTH - TOP_BORDER)) &&
-       (event->y <= TOP_BORDER)) { //topright corner
+	(event->x < (WINWIDTH - TOP_BORDER)) &&
+	(event->y <= TOP_BORDER)) { /*topright corner*/
       gdk_window_raise(window->window);
       gdk_pointer_grab(window->window, FALSE, GDK_BUTTON_MOTION_MASK | GDK_BUTTON_RELEASE_MASK,
 		       GDK_NONE, GDK_NONE, GDK_CURRENT_TIME);
       dscope_window_motion = TRUE;
+      dock_move_press(dock_window_list, window, event, FALSE);
     }
     
     if (event->button == 3) {
@@ -247,7 +264,7 @@ static void dscope_init (void) {
   dscope_set_icon(window);
   gdk_window_set_decorations(window->window, 0);
 
-  if(Cfg.pos_x != -1)
+  if (Cfg.pos_x != -1)
     gtk_widget_set_uposition (window, Cfg.pos_x, Cfg.pos_y);
 
   menu = dscope_create_menu();
@@ -281,14 +298,23 @@ static void dscope_init (void) {
 
   dscope_set_theme();
 
-  //gdk_color_white(gdk_colormap_get_system(), &color);
-  gdk_gc_set_foreground(gc, &graphcolor);
+  /*gdk_color_white(gdk_colormap_get_system(), &color); */
+  /*gdk_gc_set_foreground(gc, &graphcolor);*/
+
+  if (!g_list_find(dock_window_list, window)) {
+    dock_add_window(dock_window_list, window);
+  }
 
   gtk_widget_show(window);
 }
 
-static void dscope_cleanup(void) {
+static void dscope_cleanup (void) {
   dscope_config_write();
+
+  /* dock_remove_window() seems not to exist in xmms,
+     not sure if this is needed */
+  g_list_remove(dock_window_list, window); 
+
   if (win_about) gtk_widget_destroy(win_about);
   if (window)    gtk_widget_destroy(window);
   if (fsel)      gtk_widget_destroy(fsel);
@@ -296,17 +322,19 @@ static void dscope_cleanup(void) {
   if (bg_pixmap)    { gdk_pixmap_unref(bg_pixmap); bg_pixmap = NULL; }
   if (pixmap) { gdk_pixmap_unref(pixmap); pixmap = NULL; }
   if (Cfg.skin_xpm) g_free(Cfg.skin_xpm);
+
+	
 }
 
-static void dscope_playback_start(void) {
+static void dscope_playback_start (void) {
   /* only void code */
 }
 
-static void dscope_playback_stop(void) {
+static void dscope_playback_stop (void) {
   /* */
 }
 
-static void dscope_render_pcm(gint16 data[2][512]) {
+static void dscope_render_pcm (gint16 data[2][512]) {
   int i = 0;
   gint32 ry, ly, try = 0, tly = 0;
   gint16 *rd, *ld;
@@ -332,18 +360,36 @@ static void dscope_render_pcm(gint16 data[2][512]) {
     ry += *rd; rd++;
     ry += *rd; rd++;
     ry += *rd; rd++;
-    ry /= 4*65536/AHEIGHT;
-    
+    /* ry /= 4*65536/AHEIGHT; */
+    ry /= 5462;
+
     ly = *ld; ld++;
     ly += *ld; ld++;
     ly += *ld; ld++;
     ly += *ld; ld++;
-    ly /= 4*65536/AHEIGHT;
+    /*ly /= 4*65536/AHEIGHT; */
+    ly /= 5462;
 
     ry += AHEIGHT/2;
     ly += AHEIGHT/2;
 
-    if (Cfg.type == 2) { /* filled */
+    /* range should be 0-47 here */
+
+    if (Cfg.type == TYPE_FILLED2) { /* new ? */
+      ry /= 2;
+      ly /= 2;
+      gdk_draw_line(pixmap, gc,
+		    WINWIDTH - SIDE_BORDER - AWIDTH + i, 
+		    TOP_BORDER + AHEIGHT/2-1-ry,
+		    WINWIDTH - SIDE_BORDER - AWIDTH + i,
+		    TOP_BORDER + AHEIGHT/2+ry);
+      gdk_draw_line(pixmap, gc,
+		    SIDE_BORDER + i,
+		    TOP_BORDER + AHEIGHT/2-1-ly,
+		    SIDE_BORDER + i,
+		    TOP_BORDER + AHEIGHT/2+ly);
+    }
+    else if (Cfg.type == TYPE_FILLED) { /* filled */
       if (ry != AHEIGHT/2) 
 	gdk_draw_line(pixmap, gc, 
 		      WINWIDTH - SIDE_BORDER - AWIDTH + i, 
@@ -356,13 +402,15 @@ static void dscope_render_pcm(gint16 data[2][512]) {
 		      TOP_BORDER + ((ly > 0) ? AHEIGHT/2 : AHEIGHT/2 - 1), 
 		      SIDE_BORDER + i, 
 		      TOP_BORDER + ly);
-    } else if (Cfg.type == 1) { /* line */
+    }
+    else if (Cfg.type == TYPE_LINE) { /* line */
       if (i == 0) { 
 	gdk_draw_point(pixmap, gc, WINWIDTH - SIDE_BORDER - AWIDTH, TOP_BORDER + ry);
 	gdk_draw_point(pixmap, gc, SIDE_BORDER, TOP_BORDER + ly);
 	tly = ly;
 	try = ry;
-      } else {
+      }
+      else {
 	gdk_draw_line(pixmap, gc, 
 		      WINWIDTH - SIDE_BORDER - AWIDTH + i-1, TOP_BORDER + try, 
 		      WINWIDTH - SIDE_BORDER - AWIDTH + i, TOP_BORDER + ry);
@@ -372,7 +420,8 @@ static void dscope_render_pcm(gint16 data[2][512]) {
 	tly = ly;
 	try = ry;
       }
-    } else { /* dot */
+    }
+    else { /* (Cfg.type == TYPE_DOT) * dot */
       gdk_draw_point(pixmap, gc,
 		     WINWIDTH - SIDE_BORDER - AWIDTH + i, 
 		     TOP_BORDER + ry);
@@ -397,11 +446,10 @@ static void dscope_config_read () {
   Cfg.pos_y = -1;
 
   filename = g_strconcat(g_get_home_dir(), "/.xmms/config", NULL);
-  if((cfg = xmms_cfg_open_file(filename)) != NULL) {
+  if ((cfg = xmms_cfg_open_file(filename)) != NULL) {
     xmms_cfg_read_int(cfg, CONFIG_SECTION, "type", &Cfg.type);
     xmms_cfg_read_string(cfg, CONFIG_SECTION, "skin_xpm", &themefile);
-    if(themefile)
-      Cfg.skin_xpm = g_strdup(themefile);
+    if (themefile) Cfg.skin_xpm = g_strdup(themefile);
     xmms_cfg_read_int(cfg, CONFIG_SECTION, "pos_x", &Cfg.pos_x);
     xmms_cfg_read_int(cfg, CONFIG_SECTION, "pos_y", &Cfg.pos_y);
     xmms_cfg_free(cfg);
@@ -413,11 +461,12 @@ static void dscope_config_write () {
   ConfigFile *cfg;
   gchar *filename;
 
-  if((Cfg.pos_x != -1) && (window != NULL))
+  if ((Cfg.pos_x != -1) && (window != NULL)) {
     gdk_window_get_position(window->window, &Cfg.pos_x, &Cfg.pos_y);
+  }
     
   filename = g_strconcat(g_get_home_dir(), "/.xmms/config", NULL);
-  if((cfg = xmms_cfg_open_file(filename)) != NULL) {
+  if ((cfg = xmms_cfg_open_file(filename)) != NULL) {
     xmms_cfg_write_int(cfg, CONFIG_SECTION, "type", Cfg.type);
     xmms_cfg_write_string(cfg, CONFIG_SECTION, "skin_xpm",
 			    (Cfg.skin_xpm != NULL)?Cfg.skin_xpm:"default");
@@ -439,12 +488,7 @@ static void on_btn_about_close_clicked (GtkButton *button, gpointer user_data) {
 /* ************************* */
 /* configwindow callbacks    */
 static void on_rdbtn_type_toggled(GtkToggleButton *togglebutton, gpointer user_data) {
-  if(gtk_toggle_button_get_active((GtkToggleButton *) rdbtn_filled))
-    Cfg.type = 2;
-  else if(gtk_toggle_button_get_active((GtkToggleButton *) rdbtn_line))
-    Cfg.type = 1;
-  else // normal
-    Cfg.type = 0;
+  Cfg.type = (int)user_data;
 }
 
 static void on_btn_snapmainwin_clicked (GtkButton *button, gpointer user_data) {
@@ -537,7 +581,7 @@ static void dscope_about (void) {
 
   lbl_author = gtk_label_new ("plugin for XMMS\n"
 			      "made by Joakim Elofsson\n"
-			      "joakime@hem.passagen.se\n"
+			      "joakim.elofsson@home.se\n"
 			      "   http://hem.passagen.se/joakime/index.html   ");
   gtk_container_add (GTK_CONTAINER (frm), lbl_author);
   gtk_widget_show (lbl_author);
@@ -561,6 +605,9 @@ static void dscope_config (void) {
   GtkWidget *vbox2;
   GSList *type_group = NULL;
   GtkWidget *rdbtn_dots;
+  GtkWidget *rdbtn_line;
+  GtkWidget *rdbtn_filled;
+  GtkWidget *rdbtn_filled2;
   
   GtkWidget *nblbl_type;
   GtkWidget *vb_misc;
@@ -573,10 +620,9 @@ static void dscope_config (void) {
   GtkWidget *nblbl_misc;
   GtkWidget *btn_close;
 
-  if(win_conf)
-    return;
+  if (win_conf) return;
 
-  if(Cfg.skin_xpm == NULL) /* if config never read */
+  if (Cfg.skin_xpm == NULL) /* if config never read */
     dscope_config_read ();  
 
   win_conf = gtk_window_new (GTK_WINDOW_DIALOG);
@@ -616,9 +662,16 @@ static void dscope_config (void) {
   gtk_widget_show (rdbtn_filled);
   gtk_box_pack_start (GTK_BOX (vbox2), rdbtn_filled, FALSE, FALSE, 0);
 
-  if( Cfg.type==2 )
+  rdbtn_filled2 = gtk_radio_button_new_with_label (type_group, "filled2");
+  type_group = gtk_radio_button_group (GTK_RADIO_BUTTON (rdbtn_filled2));
+  gtk_widget_show (rdbtn_filled2);
+  gtk_box_pack_start (GTK_BOX (vbox2), rdbtn_filled2, FALSE, FALSE, 0);
+
+  if ( Cfg.type == 3 )
+    gtk_toggle_button_set_active((GtkToggleButton *) rdbtn_filled2, TRUE);
+  else if ( Cfg.type == 2 )
     gtk_toggle_button_set_active((GtkToggleButton *) rdbtn_filled, TRUE);
-  else if(Cfg.type==1)
+  else if (Cfg.type == 1)
     gtk_toggle_button_set_active((GtkToggleButton *) rdbtn_line, TRUE);
   else
     gtk_toggle_button_set_active((GtkToggleButton *) rdbtn_dots, TRUE);
@@ -675,29 +728,23 @@ static void dscope_config (void) {
   gtk_widget_show (btn_close);
   gtk_box_pack_start (GTK_BOX (vb), btn_close, FALSE, FALSE, 0);
   gtk_signal_connect (GTK_OBJECT (rdbtn_dots), "clicked",
-                      GTK_SIGNAL_FUNC (on_rdbtn_type_toggled),
-		      NULL);
+                      GTK_SIGNAL_FUNC (on_rdbtn_type_toggled), (gpointer) TYPE_DOT);
   gtk_signal_connect (GTK_OBJECT (rdbtn_line), "clicked",
-                      GTK_SIGNAL_FUNC (on_rdbtn_type_toggled),
-                      NULL);
+                      GTK_SIGNAL_FUNC (on_rdbtn_type_toggled), (gpointer) TYPE_LINE);
   gtk_signal_connect (GTK_OBJECT (rdbtn_filled), "clicked",
-                      GTK_SIGNAL_FUNC (on_rdbtn_type_toggled),
-                      NULL);
+                      GTK_SIGNAL_FUNC (on_rdbtn_type_toggled), (gpointer) TYPE_FILLED);
+  gtk_signal_connect (GTK_OBJECT (rdbtn_filled2), "clicked",
+                      GTK_SIGNAL_FUNC (on_rdbtn_type_toggled), (gpointer) TYPE_FILLED2);
   gtk_signal_connect (GTK_OBJECT (btn_close), "clicked",
-                      GTK_SIGNAL_FUNC (on_confbtn_close_clicked),
-                      NULL);
+                      GTK_SIGNAL_FUNC (on_confbtn_close_clicked), NULL);
   gtk_signal_connect (GTK_OBJECT (ckbtn_rcoords), "toggled",
-                      GTK_SIGNAL_FUNC (on_ckbtn_rcoords_toggled),
-                      NULL);
+                      GTK_SIGNAL_FUNC (on_ckbtn_rcoords_toggled), NULL);
   gtk_signal_connect (GTK_OBJECT (btn_snapmainwin), "clicked",
-                      GTK_SIGNAL_FUNC (on_btn_snapmainwin_clicked),
-                      (gpointer) ckbtn_rcoords);
+                      GTK_SIGNAL_FUNC (on_btn_snapmainwin_clicked), (gpointer) ckbtn_rcoords);
   gtk_signal_connect (GTK_OBJECT (btn_theme), "clicked",
-                      GTK_SIGNAL_FUNC (on_btn_theme_clicked),
-		      NULL);
+                      GTK_SIGNAL_FUNC (on_btn_theme_clicked), NULL);
   gtk_signal_connect (GTK_OBJECT (etry_theme), "changed",
-                      GTK_SIGNAL_FUNC (on_etry_theme_changed),
-		      NULL);
+                      GTK_SIGNAL_FUNC (on_etry_theme_changed), NULL);
   gtk_widget_show(win_conf);
 }
 
@@ -739,8 +786,6 @@ void create_fileselection (void) {
 		      NULL);
 }
 
-static GtkWidget *item_follow;
-
 void on_item_close_activate(GtkMenuItem *menuitem, gpointer data)
 {
   dscope_vp.disable_plugin(&dscope_vp);
@@ -754,14 +799,6 @@ void on_item_about_activate(GtkMenuItem *menuitem, gpointer data)
 void on_item_conf_activate(GtkMenuItem *menuitem, gpointer data)
 {
   dscope_config();
-}
-
-void on_item_follow_activate(GtkCheckMenuItem *item, gpointer data)
-{
-  if(!g_list_find(dock_window_list, window)) {
-    dock_add_window(dock_window_list, window);
-    gtk_widget_hide(item_follow);
-  }
 }
 
 GtkWidget* dscope_create_menu(void)
@@ -786,10 +823,6 @@ GtkWidget* dscope_create_menu(void)
   gtk_container_add (GTK_CONTAINER(menu), sep);
   gtk_widget_set_sensitive(sep, FALSE);
 
-  item_follow = gtk_menu_item_new_with_label("Add to XMMS window dock list");
-  gtk_widget_show(item_follow);
-  gtk_container_add(GTK_CONTAINER(menu), item_follow);
-
   item_conf = gtk_menu_item_new_with_label("Config");
   gtk_widget_show(item_conf);
   gtk_container_add (GTK_CONTAINER(menu), item_conf);
@@ -806,9 +839,6 @@ GtkWidget* dscope_create_menu(void)
 
   gtk_signal_connect(GTK_OBJECT(item_conf), "activate",
 		     GTK_SIGNAL_FUNC(on_item_conf_activate), NULL);
-
-  gtk_signal_connect(GTK_OBJECT(item_follow), "activate",
-		     GTK_SIGNAL_FUNC(on_item_follow_activate), NULL);
 
   return menu;
 }
