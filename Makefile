@@ -39,6 +39,6 @@ release: libdscope.so
 	strip libdscope.so
 	@echo Creating dscope_v$(VER).tar.gz
 	mkdir -p dscope-v$(VER)
-	cp COPYING Changes README UPGRADE bg*.xpm dscope.c dscope_mini.xpm libdscope.so dscope-v$(VER)
+	cp Makefile COPYING Changes README UPGRADE bg*.xpm dscope.c dscope_mini.xpm libdscope.so dscope-v$(VER)
 	tar cvzf dscope-v$(VER).tar.gz dscope-v$(VER)
 	rm -rf dscope-v$(VER)
