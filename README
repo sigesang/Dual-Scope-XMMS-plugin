@@ -1,0 +1,43 @@
+Dual Scope - plugin for XMMS
+by Joakim 'basemetal' Elofsson 2001
+
+REQUIERMENTS:
+	working XMMS 1.2.x  (X, gtk+, pthreads... etc)
+	<http://www.xmms.org>
+
+BUILD:
+	included binary was build on an linux-ix86-glibc2.1.2 system
+	
+	to build, do:
+	make
+
+	if you want you may change OPT in Makefile etc.
+
+INSTALL:
+	try  make install  as root (or  su -c 'make install')
+
+	will install plugin in xmms plugindirs and themes in
+	themedir (in xmms datadir)
+	
+	(if you have no root access, it's probably possible installing this
+	in your ~/.xmms dir, if so.. you must edit XMMS_DATADIR &
+	INSTALL-DIR in Makefile, and recompile)
+
+USE:
+	activate it in XMMS Vis-plugin-config
+        ...
+
+  skins
+   are 277x68 sized xpm the first 275 columns is the background
+   and the toppixel of the last one sets the graphcolor
+
+A thanks to Havoc Pennington for telling me how to grab a color in the pixmap
+A thanks to synap <synap@area101.penguin.nl> for suggesting
+I should make a plugin like this
+A thanks to Remi Cohen-Scali for some ideas & code.
+------------------------------------------------------------
+  comments, feedback etc: joakime@hem.passagen.se
+  screenshot, download etc will come up here:
+           http://hem.passagen.se/joakime/linuxapp.html
+
+/ Joakim 'basemetal' Elofsson

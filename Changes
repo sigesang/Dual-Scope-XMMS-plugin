@@ -1,0 +1,7 @@
+1.0 -> 1.2
+now uses a default themedirectory
+added menus, movearoundhanling
+some gtkwidget cleanup
+graphcolor and graphbackground now comes from skin
+added miniicon (for taskbar etc)
+NOTE! the old skinns should be replaced with the new ones, if using them 
