@@ -73,36 +73,37 @@ typedef struct {
 
 static DScopeCfg Cfg = { 0, NULL, 0, 0, 0 };
 
+/* external */
 extern GList *dock_add_window(GList *, GtkWidget *);
 extern gboolean dock_is_moving(GtkWidget *);
 extern void dock_move_motion(GtkWidget *,GdkEventMotion *);
 extern void dock_move_press(GList *, GtkWidget *, GdkEventButton *, gboolean);
 extern void dock_move_release(GtkWidget *);
 
-static void dscope_about ();
+static void dscope_about (void);
 static void dscope_init (void);
 static void dscope_cleanup (void);
-static void dscope_playback_start (void);
-static void dscope_playback_stop (void);
+/*static void dscope_playback_start (void);*/
+/*static void dscope_playback_stop (void);*/
 static void dscope_render_pcm (gint16 data[2][512]);
 static void dscope_config (void);
 static void create_fileselection (void);
 static void dscope_config_read ();
-static GtkWidget* dscope_create_menu(void);
+static GtkWidget* dscope_create_menu (void);
 static void dscope_config_write ();
 
 VisPlugin dscope_vp = {
 	NULL, NULL, 0,
 	THIS_IS,
-	2, // pcm channels
-	0, // freq channels
+	2, /* pcm channels */
+	0, /* freq channels */
 	dscope_init, 
 	dscope_cleanup,
 	dscope_about,
 	dscope_config,
 	NULL,
-	dscope_playback_start,
-	dscope_playback_stop,
+	NULL, /*dscope_playback_start*/
+	NULL, /*dscope_playback_stop*/
 	dscope_render_pcm,
 	NULL
 };
@@ -115,7 +116,7 @@ static void dscope_destroy_cb (GtkWidget *w, gpointer data) {
   dscope_vp.disable_plugin(&dscope_vp);
 }
 
-static void dscope_set_theme() {
+static void dscope_set_theme (void) {
   GdkColor color;
   GdkGC *gc2 = NULL;
   GdkImage *bg_img = NULL;
@@ -123,10 +124,12 @@ static void dscope_set_theme() {
   GdkVisual *visual;
   GdkColormap *cmap;
 
-  if (Cfg.skin_xpm != NULL && strcmp(Cfg.skin_xpm, "default") != 0)
+  if (Cfg.skin_xpm != NULL && strcmp(Cfg.skin_xpm, "default") != 0) {
     bg_pixmap = gdk_pixmap_create_from_xpm(window->window, &mask, NULL, Cfg.skin_xpm);
-  if (bg_pixmap == NULL)
+  }
+  if (bg_pixmap == NULL) {
     bg_pixmap = gdk_pixmap_create_from_xpm_d(window->window, &mask, NULL, bg_def_xpm);  
+  }
 
   bg_img = gdk_image_get(bg_pixmap, WINWIDTH + 1, 0, 1, 1);
   pixel = gdk_image_get_pixel(bg_img, 0, 0);
@@ -298,7 +301,7 @@ static void dscope_init (void) {
 
   dscope_set_theme();
 
-  /*gdk_color_white(gdk_colormap_get_system(), &color); */
+  /*gdk_color_white(gdk_colormap_get_system(), &color);*/
   /*gdk_gc_set_foreground(gc, &graphcolor);*/
 
   if (!g_list_find(dock_window_list, window)) {
@@ -322,17 +325,15 @@ static void dscope_cleanup (void) {
   if (bg_pixmap)    { gdk_pixmap_unref(bg_pixmap); bg_pixmap = NULL; }
   if (pixmap) { gdk_pixmap_unref(pixmap); pixmap = NULL; }
   if (Cfg.skin_xpm) g_free(Cfg.skin_xpm);
-
-	
 }
 
+/* useless
 static void dscope_playback_start (void) {
-  /* only void code */
 }
 
 static void dscope_playback_stop (void) {
-  /* */
 }
+*/
 
 static void dscope_render_pcm (gint16 data[2][512]) {
   int i = 0;
@@ -375,7 +376,7 @@ static void dscope_render_pcm (gint16 data[2][512]) {
 
     /* range should be 0-47 here */
 
-    if (Cfg.type == TYPE_FILLED2) { /* new ? */
+    if (Cfg.type == TYPE_FILLED2) { /* filled 2 */
       ry /= 2;
       ly /= 2;
       gdk_draw_line(pixmap, gc,
@@ -536,7 +537,7 @@ static void on_btn_theme_clicked (GtkButton *button, gpointer user_data) {
 /* fileselect callbacks     */
 static void on_btn_fsel_cancel_clicked (GtkButton *button, gpointer user_data) {
   gtk_widget_destroy(fsel);
-  fsel=NULL;
+  fsel = NULL;
 }
 
 static void on_btn_fsel_ok_clicked (GtkButton *button, gpointer user_data) {
@@ -544,7 +545,7 @@ static void on_btn_fsel_ok_clicked (GtkButton *button, gpointer user_data) {
   fname=gtk_file_selection_get_filename((GtkFileSelection *) fsel);
   gtk_entry_set_text((GtkEntry *) etry_theme, fname);
   gtk_widget_destroy(fsel);
-  fsel=NULL;
+  fsel = NULL;
 }
 
 /* ****                                            */
@@ -667,11 +668,11 @@ static void dscope_config (void) {
   gtk_widget_show (rdbtn_filled2);
   gtk_box_pack_start (GTK_BOX (vbox2), rdbtn_filled2, FALSE, FALSE, 0);
 
-  if ( Cfg.type == 3 )
+  if ( Cfg.type == TYPE_FILLED2 )
     gtk_toggle_button_set_active((GtkToggleButton *) rdbtn_filled2, TRUE);
-  else if ( Cfg.type == 2 )
+  else if ( Cfg.type == TYPE_FILLED )
     gtk_toggle_button_set_active((GtkToggleButton *) rdbtn_filled, TRUE);
-  else if (Cfg.type == 1)
+  else if (Cfg.type == TYPE_LINE )
     gtk_toggle_button_set_active((GtkToggleButton *) rdbtn_line, TRUE);
   else
     gtk_toggle_button_set_active((GtkToggleButton *) rdbtn_dots, TRUE);
@@ -753,7 +754,7 @@ void create_fileselection (void) {
   GtkWidget *btn_fsel_ok;
   gchar *themefile = NULL;
 
-  fsel = gtk_file_selection_new ("Välj fil");
+  fsel = gtk_file_selection_new ("Choose file");
   gtk_object_set_data (GTK_OBJECT (fsel), "fsel", fsel);
   gtk_container_set_border_width (GTK_CONTAINER (fsel), 5);
 
@@ -786,23 +787,19 @@ void create_fileselection (void) {
 		      NULL);
 }
 
-void on_item_close_activate(GtkMenuItem *menuitem, gpointer data)
-{
+void on_item_close_activate(GtkMenuItem *menuitem, gpointer data) {
   dscope_vp.disable_plugin(&dscope_vp);
 }
 
-void on_item_about_activate(GtkMenuItem *menuitem, gpointer data)
-{
+void on_item_about_activate(GtkMenuItem *menuitem, gpointer data) {
   dscope_about();
 }
 
-void on_item_conf_activate(GtkMenuItem *menuitem, gpointer data)
-{
+void on_item_conf_activate(GtkMenuItem *menuitem, gpointer data) {
   dscope_config();
 }
 
-GtkWidget* dscope_create_menu(void)
-{
+GtkWidget* dscope_create_menu(void) {
   GtkWidget *menu;
   GtkAccelGroup *m_acc;
   
