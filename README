@@ -1,5 +1,5 @@
 Dual Scope - plugin for XMMS
-by Joakim 'basemetal' Elofsson 2002
+by Joakim Elofsson, joakim dot elofsson at gmail dot com
 
 REQUIERMENTS:
 	working XMMS 1.2.5+  (X, gtk+, pthreads... etc)
@@ -33,11 +33,7 @@ USE:
    and the toppixel of the last one sets the graphcolor
 
 A thanks to Havoc Pennington for telling me how to grab a color in the pixmap
-A thanks to synap <synap@area101.penguin.nl> for suggesting I should make a plugin like this
+A thanks to synap <synap at area101 dot penguin dot nl> for suggesting I should make a plugin like this
 A thanks to Remi Cohen-Scali for some ideas & code.
-------------------------------------------------------------
-  comments, feedback etc: joakim.elofsson@home.se
-  screenshot, download etc will come up here:
-           http://www.shell.linux.se/bm/
-
+--------------------------------------------
 // Joakim 'basemetal' Elofsson / 2002-11-09

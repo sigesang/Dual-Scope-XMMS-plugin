@@ -11,10 +11,11 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <xmms/plugin.h>
 #include <xmms/configfile.h>
 
-#include "bg-def.xpm"
+#include "bg_def.xpm"
 #include "dscope_mini.xpm"
 
 #define THIS_IS "Dual Scope v1.3.1"
