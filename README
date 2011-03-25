@@ -7,15 +7,13 @@ REQUIERMENTS:
 	<http://www.xmms.org>
 
 BUILD:
-	included binary was build on an linux-ix86-glibc2.2.5 system
-	
 	to build, do:
 	make
 
 	if you want you may change OPT in Makefile etc.
 
 INSTALL:
-	try  make install  as root (or  su -c 'make install')
+	try  make install  as root (or  su -c 'make install' )
 
 	will install plugin in xmms plugindirs and themes in
 	themedir (in xmms datadir)
@@ -36,4 +34,4 @@ A thanks to Havoc Pennington for telling me how to grab a color in the pixmap
 A thanks to synap <synap at area101 dot penguin dot nl> for suggesting I should make a plugin like this
 A thanks to Remi Cohen-Scali for some ideas & code.
 --------------------------------------------
-// Joakim 'basemetal' Elofsson / 2002-11-09
+// Joakim Elofsson / 2002-11-09
